@@ -459,7 +459,7 @@ std::array<uint8_t, bits / 8> sha512_t(const uint8_t* data, uint64_t length)
     auto initial_hash = sha512_impl(modified_initial_hash_values, buf, len);
 
     // To read the hash bytes back into 64-bit integers, we must convert back
-    // into big-endian.
+    // from big-endian.
     uint64_t initial_hash64[8] = {0};
 
     for (int i = 0; i != 8; ++i) {
