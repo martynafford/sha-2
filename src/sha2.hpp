@@ -421,6 +421,124 @@ sha512_hash sha512(const uint8_t* data, uint64_t length)
     return sha512_impl(initial_hash_values, data, length);
 }
 
+// SHA-512/t is a truncated version of SHA-512, where the result is truncated
+// to t bits (in this implementation, t must be a multiple of eight). The two
+// primariy variants of this are SHA-512/224 and SHA-512/256, both of which are
+// provided through explicit functions (sha512_224 and sha512_256) below this
+// function. On 64-bit platforms, SHA-512, and correspondingly SHA-512/t,
+// should give a significant performance improvement over SHA-224 and SHA-256
+// due to the doubled block size.
+template <int bits>
+inline
+std::array<uint8_t, bits / 8> sha512_t(const uint8_t* data, uint64_t length)
+{
+    static_assert(bits % 8 == 0, "Bits must be a multiple of 8 (i.e., bytes).");
+    static_assert(0 < bits && bits <= 512, "Bits must be between 8 and 512");
+    static_assert(bits != 384, "NIST explicitly denies 384 bits, use SHA-384.");
+
+    const uint64_t modified_initial_hash_values[8] = {
+        0x6a09e667f3bcc908 ^ 0xa5a5a5a5a5a5a5a5,
+        0xbb67ae8584caa73b ^ 0xa5a5a5a5a5a5a5a5,
+        0x3c6ef372fe94f82b ^ 0xa5a5a5a5a5a5a5a5,
+        0xa54ff53a5f1d36f1 ^ 0xa5a5a5a5a5a5a5a5,
+        0x510e527fade682d1 ^ 0xa5a5a5a5a5a5a5a5,
+        0x9b05688c2b3e6c1f ^ 0xa5a5a5a5a5a5a5a5,
+        0x1f83d9abfb41bd6b ^ 0xa5a5a5a5a5a5a5a5,
+        0x5be0cd19137e2179 ^ 0xa5a5a5a5a5a5a5a5
+    };
+
+    // The SHA-512/t generation function uses a modified SHA-512 on the string
+    // "SHA-512/t" where t is the number of bits. The modified SHA-512 operates
+    // like the original but uses different initial hash values, as seen above.
+    // The hash is then used for the initial hash values sent to the original
+    // SHA-512. The sha512_224 and sha512_256 functions have this precalculated.
+    constexpr int buf_size = 12;
+    uint8_t buf[buf_size];
+    auto len = snprintf(reinterpret_cast<char*>(buf), buf_size, "SHA-512/%d", bits);
+
+    auto initial_hash = sha512_impl(modified_initial_hash_values, buf, len);
+
+    // To read the hash bytes back into 64-bit integers, we must convert back
+    // into big-endian.
+    uint64_t initial_hash64[8] = {0};
+
+    for (int i = 0; i != 8; ++i) {
+        union {
+            uint8_t u8[8];
+            uint64_t u64;
+        };
+
+        u8[0] = initial_hash[i * 8 + 7];
+        u8[1] = initial_hash[i * 8 + 6];
+        u8[2] = initial_hash[i * 8 + 5];
+        u8[3] = initial_hash[i * 8 + 4];
+        u8[4] = initial_hash[i * 8 + 3];
+        u8[5] = initial_hash[i * 8 + 2];
+        u8[6] = initial_hash[i * 8 + 1];
+        u8[7] = initial_hash[i * 8 + 0];
+
+        initial_hash64[i] = u64;
+    }
+
+    // Once the initial hash is computed, use regular SHA-512 and copy the
+    // appropriate number of bytes.
+    auto hash = sha512_impl(initial_hash64, data, length);
+
+    std::array<uint8_t, bits / 8> result;
+    memcpy(result.data(), hash.data(), sizeof(result));
+    return result;
+}
+
+// It is preferable to use either sha512_224 or sha512_256 in place of
+// sha512_t<224> or sha512_t<256> for better performance (as the initial
+// hashes are precalculated), for slightly less syntactic noise and for
+// consistency with the other functions.
+inline
+sha224_hash sha512_224(const uint8_t* data, uint64_t length)
+{
+    // Precalculated initial hash (The hash of "SHA-512/224" using the modified
+    // SHA-512 generation function, described above in sha512_t).
+    const uint64_t initial_hash_values[8] = {
+        0x8c3d37c819544da2,
+        0x73e1996689dcd4d6,
+        0x1dfab7ae32ff9c82,
+        0x679dd514582f9fcf,
+        0x0f6d2b697bd44da8,
+        0x77e36f7304c48942,
+        0x3f9d85a86a1d36c8,
+        0x1112e6ad91d692a1
+    };
+
+    auto hash = sha512_impl(initial_hash_values, data, length);
+
+    sha224_hash result;
+    memcpy(result.data(), hash.data(), sizeof(result));
+    return result;
+}
+
+inline
+sha256_hash sha512_256(const uint8_t* data, uint64_t length)
+{
+    // Precalculated initial hash (The hash of "SHA-512/256" using the modified
+    // SHA-512 generation function, described above in sha512_t).
+    const uint64_t initial_hash_values[8] = {
+        0x22312194fc2bf72c,
+        0x9f555fa3c84c64c2,
+        0x2393b86b6f53b151,
+        0x963877195940eabd,
+        0x96283ee2a88effe3,
+        0xbe5e1e2553863992,
+        0x2b0199fc2c85b8aa,
+        0x0eb72ddc81c52ca2
+    };
+
+    auto hash = sha512_impl(initial_hash_values, data, length);
+
+    sha256_hash result;
+    memcpy(result.data(), hash.data(), sizeof(result));
+    return result;
+}
+
 } // sha2 namespace
 
 #endif /* SHA2_HPP */

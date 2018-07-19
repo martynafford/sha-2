@@ -68,7 +68,17 @@ sha224_hash sha224(const uint8_t* data, uint64_t length);
 sha256_hash sha256(const uint8_t* data, uint64_t length);
 sha384_hash sha384(const uint8_t* data, uint64_t length);
 sha512_hash sha512(const uint8_t* data, uint64_t length);
+
+sha224_hash sha512_224(const uint8_t* data, uint64_t length);
+sha256_hash sha512_256(const uint8_t* data, uint64_t length);
+
+template <int bits>
+std::array<uint8_t, bits / 8> sha512_t(const uint8_t* data, uint64_t length);
 ```
+
+`sha512_t` accepts bit lengths that are a multiple of eight and range between
+eight and 512. A bit length of 384 is explicitly forbidden, `sha384` should be
+used in that case.
 
 ## Disclaimer
 
