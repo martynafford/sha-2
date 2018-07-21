@@ -7,6 +7,7 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <utility>
 
 namespace sha2 {
 
@@ -460,24 +461,14 @@ std::array<uint8_t, bits / 8> sha512_t(const uint8_t* data, uint64_t length)
 
     // To read the hash bytes back into 64-bit integers, we must convert back
     // from big-endian.
-    uint64_t initial_hash64[8] = {0};
+    uint8_t* initial_hash8 = initial_hash.data();
+    uint64_t* initial_hash64 = reinterpret_cast<uint64_t*>(initial_hash8);
 
     for (int i = 0; i != 8; ++i) {
-        union {
-            uint8_t u8[8];
-            uint64_t u64;
-        };
-
-        u8[0] = initial_hash[i * 8 + 7];
-        u8[1] = initial_hash[i * 8 + 6];
-        u8[2] = initial_hash[i * 8 + 5];
-        u8[3] = initial_hash[i * 8 + 4];
-        u8[4] = initial_hash[i * 8 + 3];
-        u8[5] = initial_hash[i * 8 + 2];
-        u8[6] = initial_hash[i * 8 + 1];
-        u8[7] = initial_hash[i * 8 + 0];
-
-        initial_hash64[i] = u64;
+        std::swap(initial_hash8[i * 8 + 7], initial_hash[i * 8 + 0]);
+        std::swap(initial_hash8[i * 8 + 6], initial_hash[i * 8 + 1]);
+        std::swap(initial_hash8[i * 8 + 5], initial_hash[i * 8 + 2]);
+        std::swap(initial_hash8[i * 8 + 4], initial_hash[i * 8 + 3]);
     }
 
     // Once the initial hash is computed, use regular SHA-512 and copy the
