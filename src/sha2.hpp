@@ -11,10 +11,13 @@
 
 namespace sha2 {
 
-using sha224_hash = std::array<uint8_t, 28>;
-using sha256_hash = std::array<uint8_t, 32>;
-using sha384_hash = std::array<uint8_t, 48>;
-using sha512_hash = std::array<uint8_t, 64>;
+template <size_t N>
+using hash_array = std::array<uint8_t, N>;
+
+using sha224_hash = hash_array<28>;
+using sha256_hash = hash_array<32>;
+using sha384_hash = hash_array<48>;
+using sha512_hash = hash_array<64>;
 
 // SHA-2 uses big-endian integers.
 inline void
@@ -52,6 +55,17 @@ inline uint64_t
 ror(uint64_t x, uint64_t n)
 {
     return (x >> n) | (x << (-n & 63));
+}
+
+// Utility function to truncate larger hashes. Assumes appropriate hash types
+// (i.e., hash_array<N>) for type T.
+template <typename T, size_t N>
+inline T
+truncate(const hash_array<N>& hash)
+{
+    T result;
+    memcpy(result.data(), hash.data(), sizeof(result));
+    return result;
 }
 
 // Both sha256_impl and sha512_impl are used by sha224/sha256 and
@@ -328,10 +342,7 @@ sha224(const uint8_t* data, uint64_t length)
                                              0xbefa4fa4};
 
     auto hash = sha256_impl(initial_hash_values, data, length);
-
-    sha224_hash result;
-    memcpy(result.data(), hash.data(), sizeof(result));
-    return result;
+    return truncate<sha224_hash>(hash);
 }
 
 inline sha256_hash
@@ -364,10 +375,7 @@ sha384(const uint8_t* data, uint64_t length)
                                              0x47b5481dbefa4fa4};
 
     auto hash = sha512_impl(initial_hash_values, data, length);
-
-    sha384_hash result;
-    memcpy(result.data(), hash.data(), sizeof(result));
-    return result;
+    return truncate<sha384_hash>(hash);
 }
 
 inline sha512_hash
@@ -393,7 +401,7 @@ sha512(const uint8_t* data, uint64_t length)
 // should give a significant performance improvement over SHA-224 and SHA-256
 // due to the doubled block size.
 template <int bits>
-inline std::array<uint8_t, bits / 8>
+inline hash_array<bits / 8>
 sha512_t(const uint8_t* data, uint64_t length)
 {
     static_assert(bits % 8 == 0, "Bits must be a multiple of 8 (i.e., bytes).");
@@ -438,10 +446,7 @@ sha512_t(const uint8_t* data, uint64_t length)
     // Once the initial hash is computed, use regular SHA-512 and copy the
     // appropriate number of bytes.
     auto hash = sha512_impl(initial_hash64, data, length);
-
-    std::array<uint8_t, bits / 8> result;
-    memcpy(result.data(), hash.data(), sizeof(result));
-    return result;
+    return truncate<hash_array<bits / 8>>(hash);
 }
 
 // It is preferable to use either sha512_224 or sha512_256 in place of
@@ -463,10 +468,7 @@ sha512_224(const uint8_t* data, uint64_t length)
                                              0x1112e6ad91d692a1};
 
     auto hash = sha512_impl(initial_hash_values, data, length);
-
-    sha224_hash result;
-    memcpy(result.data(), hash.data(), sizeof(result));
-    return result;
+    return truncate<sha224_hash>(hash);
 }
 
 inline sha256_hash
@@ -484,10 +486,7 @@ sha512_256(const uint8_t* data, uint64_t length)
                                              0x0eb72ddc81c52ca2};
 
     auto hash = sha512_impl(initial_hash_values, data, length);
-
-    sha256_hash result;
-    memcpy(result.data(), hash.data(), sizeof(result));
-    return result;
+    return truncate<sha256_hash>(hash);
 }
 
 } // sha2 namespace
