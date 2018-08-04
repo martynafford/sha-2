@@ -7,7 +7,6 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
-#include <utility>
 
 namespace sha2 {
 
@@ -40,6 +39,20 @@ write_u64(uint8_t* dest, uint64_t x)
     *dest++ = x >> 16;
     *dest++ = x >> 8;
     *dest++ = x >> 0;
+}
+
+inline uint32_t
+read_u32(const uint8_t* src)
+{
+    return (src[0] << 24) | (src[1] << 16) | (src[2] << 8) | src[3];
+}
+
+inline uint64_t
+read_u64(const uint8_t* src)
+{
+    uint64_t upper = read_u32(src);
+    uint64_t lower = read_u32(src + 4);
+    return ((upper & 0xffffffff) << 32) | (lower & 0xffffffff);
 }
 
 // A compiler-recognised implementation of rotate right that avoids the
@@ -98,9 +111,8 @@ sha256_impl(const uint32_t* s, const uint8_t* data, uint64_t length)
     auto chunk = [&hash, &k](const uint8_t* chunk_data) {
         uint32_t w[64] = {0};
 
-        for (int i = 0, j = 0; i != 16; ++i, j += 4) {
-            w[i] = (chunk_data[j + 0] << 24) | (chunk_data[j + 1] << 16) |
-                   (chunk_data[j + 2] << 8) | (chunk_data[j + 3] << 0);
+        for (int i = 0; i != 16; ++i) {
+            w[i] = read_u32(&chunk_data[i * 4]);
         }
 
         for (int i = 16; i != 64; ++i) {
@@ -232,13 +244,8 @@ sha512_impl(const uint64_t* s, const uint8_t* data, uint64_t length)
     auto chunk = [&hash, &k](const uint8_t* chunk_data) {
         uint64_t w[80] = {0};
 
-        for (int i = 0, j = 0; i != 16; ++i, j += 8) {
-            uint64_t x = (chunk_data[j + 0] << 24) | (chunk_data[j + 1] << 16) |
-                         (chunk_data[j + 2] << 8) | (chunk_data[j + 3] << 0);
-            x <<= 32;
-            x |= (chunk_data[j + 4] << 24) | (chunk_data[j + 5] << 16) |
-                 (chunk_data[j + 6] << 8) | (chunk_data[j + 7] << 0);
-            w[i] = x;
+        for (int i = 0; i != 16; ++i) {
+            w[i] = read_u64(&chunk_data[i * 8]);
         }
 
         for (int i = 16; i != 80; ++i) {
@@ -429,23 +436,19 @@ sha512_t(const uint8_t* data, uint64_t length)
     auto buf_ptr = reinterpret_cast<char*>(buf);
     auto len = snprintf(buf_ptr, buf_size, "SHA-512/%d", bits);
 
-    auto initial_hash = sha512_impl(modified_initial_hash_values, buf, len);
+    auto initial8 = sha512_impl(modified_initial_hash_values, buf, len);
 
     // To read the hash bytes back into 64-bit integers, we must convert back
     // from big-endian.
-    uint8_t* initial_hash8 = initial_hash.data();
-    uint64_t* initial_hash64 = reinterpret_cast<uint64_t*>(initial_hash8);
+    uint64_t initial64[8];
 
     for (int i = 0; i != 8; ++i) {
-        std::swap(initial_hash8[i * 8 + 7], initial_hash[i * 8 + 0]);
-        std::swap(initial_hash8[i * 8 + 6], initial_hash[i * 8 + 1]);
-        std::swap(initial_hash8[i * 8 + 5], initial_hash[i * 8 + 2]);
-        std::swap(initial_hash8[i * 8 + 4], initial_hash[i * 8 + 3]);
+        initial64[i] = read_u64(&initial8[i * 8]);
     }
 
     // Once the initial hash is computed, use regular SHA-512 and copy the
     // appropriate number of bytes.
-    auto hash = sha512_impl(initial_hash64, data, length);
+    auto hash = sha512_impl(initial64, data, length);
     return truncate<hash_array<bits / 8>>(hash);
 }
 
