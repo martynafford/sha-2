@@ -22,29 +22,30 @@ using sha512_hash = hash_array<64>;
 inline void
 write_u32(uint8_t* dest, uint32_t x)
 {
-    *dest++ = x >> 24;
-    *dest++ = x >> 16;
-    *dest++ = x >> 8;
-    *dest++ = x >> 0;
+    *dest++ = (x >> 24) & 0xff;
+    *dest++ = (x >> 16) & 0xff;
+    *dest++ = (x >> 8) & 0xff;
+    *dest++ = (x >> 0) & 0xff;
 }
 
 inline void
 write_u64(uint8_t* dest, uint64_t x)
 {
-    *dest++ = x >> 56;
-    *dest++ = x >> 48;
-    *dest++ = x >> 40;
-    *dest++ = x >> 32;
-    *dest++ = x >> 24;
-    *dest++ = x >> 16;
-    *dest++ = x >> 8;
-    *dest++ = x >> 0;
+    *dest++ = (x >> 56) & 0xff;
+    *dest++ = (x >> 48) & 0xff;
+    *dest++ = (x >> 40) & 0xff;
+    *dest++ = (x >> 32) & 0xff;
+    *dest++ = (x >> 24) & 0xff;
+    *dest++ = (x >> 16) & 0xff;
+    *dest++ = (x >> 8) & 0xff;
+    *dest++ = (x >> 0) & 0xff;
 }
 
 inline uint32_t
 read_u32(const uint8_t* src)
 {
-    return (src[0] << 24) | (src[1] << 16) | (src[2] << 8) | src[3];
+    return static_cast<uint32_t>((src[0] << 24) | (src[1] << 16) |
+                                 (src[2] << 8) | src[3]);
 }
 
 inline uint64_t
@@ -193,7 +194,7 @@ sha256_impl(const uint32_t* s, const uint8_t* data, uint64_t length)
 
     sha256_hash result;
 
-    for (int i = 0; i != 8; ++i) {
+    for (uint8_t i = 0; i != 8; ++i) {
         write_u32(&result[i * 4], hash[i]);
     }
 
@@ -327,7 +328,7 @@ sha512_impl(const uint64_t* s, const uint8_t* data, uint64_t length)
 
     sha512_hash result;
 
-    for (int i = 0; i != 8; ++i) {
+    for (uint8_t i = 0; i != 8; ++i) {
         write_u64(&result[i * 8], hash[i]);
     }
 
@@ -435,14 +436,15 @@ sha512_t(const uint8_t* data, uint64_t length)
 
     auto buf_ptr = reinterpret_cast<char*>(buf);
     auto len = snprintf(buf_ptr, buf_size, "SHA-512/%d", bits);
+    auto ulen = static_cast<uint64_t>(len);
 
-    auto initial8 = sha512_impl(modified_initial_hash_values, buf, len);
+    auto initial8 = sha512_impl(modified_initial_hash_values, buf, ulen);
 
     // To read the hash bytes back into 64-bit integers, we must convert back
     // from big-endian.
     uint64_t initial64[8];
 
-    for (int i = 0; i != 8; ++i) {
+    for (uint8_t i = 0; i != 8; ++i) {
         initial64[i] = read_u64(&initial8[i * 8]);
     }
 
